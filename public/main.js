@@ -1,9 +1,26 @@
 let cnv, s, s2, w, tile;
 let lastStartTurn = 1;
 let turn = 1;
-let grid = new Array(6);
+let grid = Array.from({ length: 6 }, () => Array(7).fill(0))
 let scores = [0, 0];
 let counter = 0;
+const socket = io();
+
+
+function joinRoom(roomName) {
+    const packet = {
+        event: 'joinRoom',
+        data: {
+            roomName: roomName
+        }
+    };
+    socket.emit('message', JSON.stringify(packet));
+}
+
+function makeMove() {
+
+}
+
 
 function setup() {
     createCanvas(document.body.clientWidth, window.innerHeight);
@@ -21,18 +38,19 @@ function setup() {
     cnv.rect(width/2, height/2, w, 6/7*w);
     cnv.noStroke();
 
-    for (let i = 0; i < 6; i++) {
-        grid[i] = new Array(7);
-        grid[i] = grid[i].fill(0);
-    }
-
     for (let i = 0; i < 7; i++) {
         for (let j = 0; j < 6; j++) {
             cnv.erase()
             cnv.circle(width/2-3*s2+s2*i, height/2-2.5*s2+s2*j, s, s);        
         }
     }
+
+    joinRoom('seed');
 }
+
+socket.on('joinedRoom', (data) => {
+    console.log(data);
+});
 
 var win = false;
 var ways = [];
@@ -123,11 +141,8 @@ function draw() {
 
 function mouseReleased() {
     if (win || counter >= 42) {
-        grid = new Array(6);
-        for (let i = 0; i < 6; i++) {
-            grid[i] = new Array(7);
-            grid[i] = grid[i].fill(0);
-        }
+        grid = Array.from({ length: 6 }, () => Array(7).fill(0));
+        
         if (lastStartTurn == 1) {
             lastStartTurn = 2;
             turn = 2;

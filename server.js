@@ -15,36 +15,46 @@ app.get('/main.js', (req, res) => {
 });
 
 io.on('connection', (socket) => {
-    socket.on('joinRoom', (roomName) => {
-        const room = rooms[roomName];
-        if (room && rooms.players.length >= 2) {
-            socket.emit('roomFull');
-            return;
+    socket.on('message', (data) => {
+        const packet = JSON.parse(data);
+
+        if (packet.event === 'joinRoom') {
+            let roomName = packet.data.roomName;
+            let room = rooms[roomName];
+
+            if (room && room.players.length >= 2) {
+                socket.emit('roomFull');
+                return;
+            }
+    
+            if (!room) {
+                rooms[roomName] = {
+                    players: [],
+                    state: {
+                        score: [0, 0],
+                        grid: Array.from({ length: 6 }, () => Array(7).fill(0))
+                    }
+                };
+
+                room = rooms[roomName];
+            }
+    
+            socket.join(roomName);
+            room.players.push(socket.id);
+    
+            socket.emit('joinedRoom', roomName);
+            
+            if (room.players.length === 2) {
+                io.to(roomName).emit('gameStart', room.state);
+            }
+        } else if (packet.event === "move") {
+            const data = packet.data;
+            const roomName = Object.keys(socket.rooms).find((r) => r !== socket.id);
+            if( !roomName || !rooms[roomName] ) return;
+    
+            rooms[roomName].state[socket.id] = data;
+            socket.to(roomName).emit('update', rooms[roomName].state);
         }
-
-        if (!room) {
-            rooms[roomName = {
-                players: [],
-                state: {}
-            }]
-        }
-
-        socket.join(roomName);
-        room.players.push(socket.id);
-
-        socket.emit('joinedRoom', roomName);
-        
-        if (room.players.length === 2) {
-            io.to(roomName).emit('gameStart', room.state);
-        }
-    });
-
-    socket.on('move', (data) => {
-        const roomName = Object.keys(socket.rooms).find((r) => r !== socket.id);
-        if( !roomName || !rooms[roomName]) return;
-
-        rooms[roomName].state[socket.id] = data;
-        socket.to(roomName).emit('update', rooms[roomName].state);
     });
 
     socket.on('disconnect', () => {
@@ -61,7 +71,4 @@ io.on('connection', (socket) => {
     });
 });
 
-const port = 80;
-server.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-})
+server.listen(80);
