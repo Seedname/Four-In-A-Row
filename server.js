@@ -180,6 +180,7 @@ io.on('connection', (socket) => {
             state.lastStartTurn = 1;
             state.turn = 1;
         }
+
         state.counter = 0;
         state.bufferData = -1;
         state.win = false;
