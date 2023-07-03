@@ -50,8 +50,8 @@ function setup() {
             cnv.circle(width/2-3*s2+s2*i, height/2-2.5*s2+s2*j, s, s);        
         }
     }
-
-    joinRoom('seed');
+    const currentPath = window.location.pathname;
+    joinRoom(currentPath);
 }
 
 socket.on('joinedRoom', (data) => {

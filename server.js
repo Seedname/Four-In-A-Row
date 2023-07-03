@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
@@ -9,6 +10,10 @@ const io = socketIO(server);
 const rooms = {};
 
 app.use(express.static('public'));
+app.get("/:roomCode", (req, res) => {
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    res.sendFile(indexPath);
+});
 app.get('/main.js', (req, res) => {
     res.type('text/javascript');
     res.sendFile(__dirname + "/main.js");
@@ -57,6 +62,7 @@ io.on('connection', (socket) => {
 
         if (room && room.players.length >= 2) {
             socket.emit('roomFull');
+            console.log(true);
             return;
         }
 
@@ -124,14 +130,19 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        const roomName = Object.keys(socket.rooms).find((r) => r !== socket.id);
+        const roomName = Object.keys(rooms).find((r) => r !== socket.id);
+        console.log(roomName);
         if (!roomName || !rooms[roomName]) return;
 
         const room = rooms[roomName];
         const playerIndex = room.players.indexOf(socket.id);
         if (playerIndex !== -1) {
+            console.log(playerIndex);
             room.players.splice(playerIndex, 1);
-
+            if (room.players.length === 0) {
+                delete rooms[roomName];
+                return;
+            }
             io.to(room.players[0]).emit('opponentDisconnected');
         }
     });
