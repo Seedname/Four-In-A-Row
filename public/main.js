@@ -62,6 +62,14 @@ function windowResized() {
     }
 }
 
+socket.on('noRoom', () => {
+    window.location.replace("/");
+
+});
+socket.on('roomFull', () => {
+    window.location.replace("/");
+}); 
+
 socket.on('createRoom', (data) => {
     window.location.replace(data);
 });
@@ -229,13 +237,13 @@ function draw() {
 }
 
 function mouseReleased() {
-    if (insideRect(width/2-250/2, height/2-75/2, 250, 75) ) {
+    if (currentPath === "" && insideRect(width/2-250/2, height/2-75/2, 250, 75) ) {
         socket.emit('createRoom');
     }
     if (currentPath === "") return;
     if ((win || tie) && player === 1) {
         socket.emit('reset', room);
-    } else if (gameStarted && turn === player) {
+    } else if (!win && !tie && gameStarted && turn === player) {
         for (let i = 0; i < 7; i++) {
             if (grid[0][i] == 0) {
                 let x = width/2-3*s2+s2*i;

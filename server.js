@@ -69,6 +69,7 @@ function update(io, data, state) {
         state.score[state.turn-1] += 1;
         io.to(roomName).emit('update', [data.column, state.turn]);
         io.to(roomName).emit('gameOver', [result, state.score]);
+        state.win = true;
         return;
     }
 
@@ -82,7 +83,7 @@ function update(io, data, state) {
 }
 
 io.on('connection', (socket) => {
-    socket.on('createRoom', (data) => {
+    socket.on('createRoom', () => {
         let uniqueRoom = false;
         let roomString = "";
         while (!uniqueRoom) {
@@ -95,6 +96,20 @@ io.on('connection', (socket) => {
             }
             roomString = "";
         }
+
+        rooms[roomString] = {
+            players: [],
+            state: {
+                score: [0, 0],
+                ready: [true, true],
+                lastStartTurn: 1,
+                turn: 1,
+                counter: 0,
+                bufferData: -1,
+                win: false,
+                grid: Array.from({ length: 6 }, () => Array(7).fill(0))
+            }
+        };
         socket.emit('createRoom', roomString);
     });
 
@@ -102,35 +117,23 @@ io.on('connection', (socket) => {
         if (data === "") return;
 
         const roomName = data;
-        let room = rooms[roomName];
 
+        if (!roomName || !rooms[roomName]) {
+            socket.emit('noRoom');
+            return;
+        }
+
+        const room = rooms[roomName];
+        
         if (room && room.players.length >= 2) {
             socket.emit('roomFull');
             return;
         }
 
-        if (!room) {
-            rooms[roomName] = {
-                players: [],
-                state: {
-                    score: [0, 0],
-                    ready: [true, true],
-                    lastStartTurn: 1,
-                    turn: 1,
-                    counter: 0,
-                    bufferData: -1,
-                    grid: Array.from({ length: 6 }, () => Array(7).fill(0))
-                }
-            };
-
-            room = rooms[roomName];
-        }
-        
         socket.join(roomName);
         room.players.push(socket.id);
 
         socket.emit('joinedRoom', [roomName, room.players.length]);
-        // io.to(roomName).emit('joinedRoom', roomName);
         
         if (room.players.length === 2) {
             io.to(roomName).emit('gameStart', room.state);
@@ -152,7 +155,10 @@ io.on('connection', (socket) => {
             state.bufferData = data;
             return;
         }
+        if (state.win) return;
+
         update(io, data, state);
+
     });
 
     socket.on('reset', (roomName) => {
@@ -176,6 +182,7 @@ io.on('connection', (socket) => {
         }
         state.counter = 0;
         state.bufferData = -1;
+        state.win = false;
 
         io.to(roomName).emit('reset', state.turn);
     });
@@ -215,6 +222,7 @@ io.on('connection', (socket) => {
                 turn: 1,
                 counter: 0,
                 bufferData: -1,
+                win: false,
                 grid: Array.from({ length: 6 }, () => Array(7).fill(0))
             };
 
