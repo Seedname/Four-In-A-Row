@@ -8,6 +8,7 @@ let gameStarted = false;
 let tie = false;
 var win = false;
 var ways = [];
+const currentPath = window.location.pathname.substring(1);
 
 const socket = io();
 
@@ -33,7 +34,7 @@ function setup() {
             cnv.circle(width/2-3*s2+s2*i, height/2-2.5*s2+s2*j, s, s);        
         }
     }
-    const currentPath = window.location.pathname.substring(1);
+
     if (currentPath !== "") socket.emit('joinRoom', currentPath);
 }
 
@@ -60,6 +61,10 @@ function windowResized() {
         }
     }
 }
+
+socket.on('createRoom', (data) => {
+    window.location.replace(data);
+});
 
 socket.on('joinedRoom', (data) => {
     room = data[0];
@@ -114,8 +119,26 @@ socket.on('reset', (data) => {
     tie = false;
 });
 
+function insideRect(x, y, w, h) { return mouseX >= x && mouseX <= x+w && mouseY >= y && mouseY <= y+h; }
+
 function draw() {
     background(245);
+
+    if (currentPath === "") {
+        textAlign(CENTER, CENTER);
+        textSize(80);
+        fill(0, 0, 255);
+        text("Four in a Row", width/2, height/4);
+        rectMode(CORNER);
+        fill(255, 0, 0);
+        noStroke();
+        if (insideRect(width/2-250/2, height/2-75/2, 250, 75) ) fill(128, 0, 0);
+        rect(width/2-250/2, height/2-75/2, 250, 75);
+        fill(0);
+        textSize(40);
+        text("Create Room", width/2, height/2)
+        return;
+    } 
 
     noStroke();
     for (let i = 0; i < 7; i++) {
@@ -206,6 +229,10 @@ function draw() {
 }
 
 function mouseReleased() {
+    if (insideRect(width/2-250/2, height/2-75/2, 250, 75) ) {
+        socket.emit('createRoom');
+    }
+    if (currentPath === "") return;
     if ((win || tie) && player === 1) {
         socket.emit('reset', room);
     } else if (gameStarted && turn === player) {
