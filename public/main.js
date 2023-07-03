@@ -4,21 +4,27 @@ let turn = 1;
 let grid = Array.from({ length: 6 }, () => Array(7).fill(0))
 let scores = [0, 0];
 let counter = 0;
+let room;
+let player;
 const socket = io();
-
 
 function joinRoom(roomName) {
     const packet = {
-        event: 'joinRoom',
         data: {
             roomName: roomName
         }
     };
-    socket.emit('message', JSON.stringify(packet));
+    socket.emit('joinRoom', JSON.stringify(packet));
 }
 
-function makeMove() {
-
+function makeMove(col) {
+    const packet = {
+        data: {
+            roomName: room,
+            column: col
+        }
+    };
+    socket.emit('move', JSON.stringify(packet));
 }
 
 
@@ -49,11 +55,36 @@ function setup() {
 }
 
 socket.on('joinedRoom', (data) => {
-    console.log(data);
+    room = data[0];
+    player = data[1];
+});
+
+socket.on('gameStart', (data) => {
+    scores = data.score;
+    lastStartTurn = data.lastStartTurn;
+    counter = data.counter;
+    grid = data.grid;
+    turn = 1;
+});
+
+socket.on('update', (data) => {
+    turn = data[1];
+    tile = new Tile(data[0], 0, grid, turn);
+});
+
+socket.on('opponentDisconnected', (data) => {
+    console.log(opponentDisconnected);
 });
 
 var win = false;
 var ways = [];
+
+
+socket.on('gameOver', (data) => {
+    win = true;
+    ways = data[0]; 
+});
+
 
 function draw() {
     background(245);
@@ -140,30 +171,32 @@ function draw() {
 }
 
 function mouseReleased() {
-    if (win || counter >= 42) {
-        grid = Array.from({ length: 6 }, () => Array(7).fill(0));
+    // if (win || counter >= 42) {
+    //     grid = Array.from({ length: 6 }, () => Array(7).fill(0));
         
-        if (lastStartTurn == 1) {
-            lastStartTurn = 2;
-            turn = 2;
-        } else if (lastStartTurn == 2) {
-            lastStartTurn = 1;
-            turn = 1;
-        }
-        win = false;
-        ways = [];
-        tile = null;
-        counter = 0;
-    } else if (!tile || tile.finished) {
+    //     if (lastStartTurn == 1) {
+    //         lastStartTurn = 2;
+    //         turn = 2;
+    //     } else if (lastStartTurn == 2) {
+    //         lastStartTurn = 1;
+    //         turn = 1;
+    //     }
+    //     win = false;
+    //     ways = [];
+    //     tile = null;
+    //     counter = 0;
+    // } else if (turn == 1 && !tile || tile.finished) {
+    if (turn == player) {
         for (let i = 0; i < 7; i++) {
             if (grid[0][i] == 0) {
                 let x = width/2-3*s2+s2*i;
                 if (mouseX >= x-s2/2 && mouseX <= x+s2/2) {
-                    turn += 1;
-                    if (turn > 2) { turn = 1; } 
+                    makeMove(i);
+                    // turn += 1;
+                    // if (turn > 2) { turn = 1; } 
 
-                    tile = new Tile(i, 0, grid, turn);
-                    counter += 1;
+                    // tile = new Tile(i, 0, grid, turn);
+                    // counter += 1;
                     break; 
                 }
             }

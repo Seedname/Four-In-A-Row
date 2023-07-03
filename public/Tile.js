@@ -71,12 +71,12 @@ class Tile {
             this.y = this.highestY;
             this.grid[this.highestJ][this.i] = this.turn;
             this.finished = true;
-            const result = checkWin(this.turn, this.grid);
-            if (result.length > 0) {
-                win = true;
-                ways = result;
-                scores[turn-1] += 1;
-            }
+            // const result = checkWin(this.turn, this.grid);
+            // if (result.length > 0) {
+            //     win = true;
+            //     ways = result;
+            //     scores[turn-1] += 1;
+            // }
         }
 
         if (this.turn == 1) {
