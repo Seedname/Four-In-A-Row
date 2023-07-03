@@ -51,6 +51,8 @@ class Tile {
         this.ay = 3;
         this.s = s;
 
+        this.updateWin = false;
+
         this.grid = grid;
         this.highestJ = 5;
         for (let j = 0; j < 6; j++) {
@@ -63,6 +65,12 @@ class Tile {
         this.highestY = height/2-2.5*s2+s2*this.highestJ;
     }
 
+    won(ways, scores) {
+        this.updateWin = true;
+        this.ways = ways;
+        this.scores = scores;
+    }
+
     display() {
         if (this.y < this.highestY - this.vy) {
             this.vy += this.ay;
@@ -71,12 +79,12 @@ class Tile {
             this.y = this.highestY;
             this.grid[this.highestJ][this.i] = this.turn;
             this.finished = true;
-            // const result = checkWin(this.turn, this.grid);
-            // if (result.length > 0) {
-            //     win = true;
-            //     ways = result;
-            //     scores[turn-1] += 1;
-            // }
+            socket.emit('ready', room);
+            if (this.updateWin) {
+                win = true;
+                ways = this.ways;
+                scores = this.scores;
+            }
         }
 
         if (this.turn == 1) {

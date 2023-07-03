@@ -10,18 +10,10 @@ const io = socketIO(server);
 const rooms = {};
 
 app.use(express.static('public'));
-app.get("/:roomCode", (req, res) => {
-    const indexPath = path.join(__dirname, 'public', 'index.html');
-    res.sendFile(indexPath);
-});
-app.get('/main.js', (req, res) => {
-    res.type('text/javascript');
-    res.sendFile(__dirname + "/main.js");
-});
+app.get("/:roomCode", (req, res) => { res.sendFile(path.join(__dirname, 'public', 'index.html')) });
 
 function checkWin(turn, grid) {
     let ways = [];
-    
     for (let i = 0; i < 6; i++) {
         for (let j = 0; j < 4; j++) {
             if (grid[i][j] == turn && grid[i][j+1] == turn && grid[i][j+2] == turn && grid[i][j+3] == turn) {
@@ -56,13 +48,11 @@ function checkWin(turn, grid) {
 
 io.on('connection', (socket) => {
     socket.on('joinRoom', (data) => {
-        const packet = JSON.parse(data);
-        const roomName = packet.data.roomName;
+        const roomName = data;
         let room = rooms[roomName];
 
         if (room && room.players.length >= 2) {
             socket.emit('roomFull');
-            console.log(true);
             return;
         }
 
@@ -71,6 +61,7 @@ io.on('connection', (socket) => {
                 players: [],
                 state: {
                     score: [0, 0],
+                    ready: [true, true],
                     lastStartTurn: 1,
                     turn: 1,
                     counter: 0,
@@ -92,19 +83,20 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('move', (d) => {
-        const packet = JSON.parse(d);
-        const data = packet.data;
+    socket.on('move', (data) => {
         const roomName = data.roomName;
 
         if ( !roomName || !rooms[roomName] ) return;
         if ( !rooms[roomName].players.includes(socket.id) ) return;
 
         const room = rooms[roomName];
+        if ( room.players.length !== 2 ) return;
         const state = room.state;
+        
+        if ( !state.ready[0] || !state.ready[1] ) return;
+        if ( socket.id !== room.players[state.turn-1] ) return;
 
-        if (socket.id !== room.players[state.turn-1]) return;
-
+        state.ready.fill(false);
         state.turn ++;
         if (state.turn > 2) { state.turn = 1; } 
 
@@ -122,27 +114,74 @@ io.on('connection', (socket) => {
         if (result.length > 0) {
             state.score[state.turn-1] += 1;
             io.to(roomName).emit('update', [data.column, state.turn]);
-            io.to(roomName).emit('gameOver', [result, state.turn]);
+            io.to(roomName).emit('gameOver', [result, state.score]);
+            return;
+        }
+
+        if (state.counter === 42) {
+            io.to(roomName).emit('update', [data.column, state.turn]);
+            io.to(roomName).emit('tie');
             return;
         }
 
         io.to(roomName).emit('update', [data.column, state.turn]);
     });
 
+    socket.on('reset', (roomName) => {
+
+        if ( !roomName || !rooms[roomName] ) return;
+
+        const room = rooms[roomName];
+
+        if (socket.id !== room.players[0]) return;
+
+        const state = room.state;
+
+        state.grid = Array.from({ length: 6 }, () => Array(7).fill(0));
+        
+        if (state.lastStartTurn == 1) {
+            state.lastStartTurn = 2;
+            state.turn = 2;
+        } else if (state.lastStartTurn == 2) {
+            state.lastStartTurn = 1;
+            state.turn = 1;
+        }
+        state.counter = 0;
+
+        io.to(roomName).emit('reset', state.turn);
+    });
+
+    socket.on('ready', (roomName) => {
+        if ( !roomName || !rooms[roomName] ) return;
+        const index = rooms[roomName].players.indexOf(socket.id);
+        if ( index < 0 ) return;
+        
+        const room = rooms[roomName];
+        const state = room.state;
+        state.ready[index] = true;
+    });
+
     socket.on('disconnect', () => {
         const roomName = Object.keys(rooms).find((r) => r !== socket.id);
-        console.log(roomName);
         if (!roomName || !rooms[roomName]) return;
 
         const room = rooms[roomName];
         const playerIndex = room.players.indexOf(socket.id);
         if (playerIndex !== -1) {
-            console.log(playerIndex);
             room.players.splice(playerIndex, 1);
             if (room.players.length === 0) {
                 delete rooms[roomName];
                 return;
             }
+
+            room.state = {
+                score: [0, 0],
+                ready: [true, true],
+                lastStartTurn: 1,
+                turn: 1,
+                counter: 0,
+                grid: Array.from({ length: 6 }, () => Array(7).fill(0))
+            };
             io.to(room.players[0]).emit('opponentDisconnected');
         }
     });

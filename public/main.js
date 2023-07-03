@@ -1,32 +1,15 @@
-let cnv, s, s2, w, tile;
+let cnv, s, s2, w, tile, room, player;
 let lastStartTurn = 1;
 let turn = 1;
 let grid = Array.from({ length: 6 }, () => Array(7).fill(0))
 let scores = [0, 0];
 let counter = 0;
-let room;
-let player;
+let gameStarted = false;
+let tie = false;
+var win = false;
+var ways = [];
+
 const socket = io();
-
-function joinRoom(roomName) {
-    const packet = {
-        data: {
-            roomName: roomName
-        }
-    };
-    socket.emit('joinRoom', JSON.stringify(packet));
-}
-
-function makeMove(col) {
-    const packet = {
-        data: {
-            roomName: room,
-            column: col
-        }
-    };
-    socket.emit('move', JSON.stringify(packet));
-}
-
 
 function setup() {
     createCanvas(document.body.clientWidth, window.innerHeight);
@@ -50,8 +33,32 @@ function setup() {
             cnv.circle(width/2-3*s2+s2*i, height/2-2.5*s2+s2*j, s, s);        
         }
     }
-    const currentPath = window.location.pathname;
-    joinRoom(currentPath);
+    const currentPath = window.location.pathname.substring(1);
+    if (currentPath !== "") socket.emit('joinRoom', currentPath);
+}
+
+function windowResized() {
+    createCanvas(document.body.clientWidth, window.innerHeight);
+
+    background(245);
+    cnv = createGraphics(width, height);
+    cnv.noStroke();
+    cnv.fill(150, 150, 150);
+    cnv.rectMode(CENTER, CENTER);
+    w = width/2;
+    s2 = w/7;
+    s = s2-40*width/1707;
+    cnv.stroke(50, 50, 50);
+    cnv.strokeWeight(20*width/1707);
+    cnv.rect(width/2, height/2, w, 6/7*w);
+    cnv.noStroke();
+
+    for (let i = 0; i < 7; i++) {
+        for (let j = 0; j < 6; j++) {
+            cnv.erase()
+            cnv.circle(width/2-3*s2+s2*i, height/2-2.5*s2+s2*j, s, s);        
+        }
+    }
 }
 
 socket.on('joinedRoom', (data) => {
@@ -64,27 +71,48 @@ socket.on('gameStart', (data) => {
     lastStartTurn = data.lastStartTurn;
     counter = data.counter;
     grid = data.grid;
+    gameStarted = true;
     turn = 1;
 });
 
 socket.on('update', (data) => {
     turn = data[1];
-    tile = new Tile(data[0], 0, grid, turn);
+    tile = new Tile(data[0], height/2-4.5*s2, grid, turn);
 });
 
 socket.on('opponentDisconnected', (data) => {
-    console.log(opponentDisconnected);
+    grid = Array.from({ length: 6 }, () => Array(7).fill(0));
+    turn = 1;
+    player = 1;
+    scores = [0, 0];
+    win = false;
+    ways = [];
+    tile = null;
+    counter = 0;
+    gameStarted = false;
 });
-
-var win = false;
-var ways = [];
-
 
 socket.on('gameOver', (data) => {
-    win = true;
-    ways = data[0]; 
+    if (!tile.finished) {
+        tile.won(data[0], data[1]);
+    } else {
+        win = true;
+        ways = data[0]; 
+        scores = data[1];
+    }
 });
 
+socket.on('tie', () => { tie = true });
+
+socket.on('reset', (data) => {
+    grid = Array.from({ length: 6 }, () => Array(7).fill(0));
+    turn = data;
+    win = false;
+    ways = [];
+    tile = null;
+    counter = 0;
+    tie = false;
+});
 
 function draw() {
     background(245);
@@ -140,7 +168,7 @@ function draw() {
             strokeWeight(10);
             line(width/2-3*s2+s2*ways[i][0][1], height/2-2.5*s2+s2*ways[i][0][0], width/2-3*s2+s2*ways[i][3][1], height/2-2.5*s2+s2*ways[i][3][0]);
         }
-    } else if (counter >= 42) {
+    } else if (tie) {
         textAlign(CENTER, CENTER);
         textSize(60);
         fill(0, 0, 0);
@@ -154,10 +182,17 @@ function draw() {
     fill(0, 0, 255);
     text(scores[1], 50, 50);
 
-    textAlign(CENTER, CENTER);
-    textSize(50);
-    fill(255, 0, 0);
-    text(scores[0], width-50, 50);
+    if (gameStarted) {
+        textAlign(CENTER, CENTER);
+        textSize(50);
+        fill(255, 0, 0);
+        text(scores[0], width-50, 50);
+    } else {
+        textAlign(RIGHT, TOP);
+        textSize(30);
+        fill(255, 0, 0);
+        text("Waiting on player...", width-50, 50);
+    }
 
     noFill();
     stroke(0);
@@ -171,32 +206,18 @@ function draw() {
 }
 
 function mouseReleased() {
-    // if (win || counter >= 42) {
-    //     grid = Array.from({ length: 6 }, () => Array(7).fill(0));
-        
-    //     if (lastStartTurn == 1) {
-    //         lastStartTurn = 2;
-    //         turn = 2;
-    //     } else if (lastStartTurn == 2) {
-    //         lastStartTurn = 1;
-    //         turn = 1;
-    //     }
-    //     win = false;
-    //     ways = [];
-    //     tile = null;
-    //     counter = 0;
-    // } else if (turn == 1 && !tile || tile.finished) {
-    if (turn == player) {
+    if ((win || tie) && player === 1) {
+        socket.emit('reset', room);
+    } else if (gameStarted && turn === player) {
         for (let i = 0; i < 7; i++) {
             if (grid[0][i] == 0) {
                 let x = width/2-3*s2+s2*i;
                 if (mouseX >= x-s2/2 && mouseX <= x+s2/2) {
-                    makeMove(i);
-                    // turn += 1;
-                    // if (turn > 2) { turn = 1; } 
-
-                    // tile = new Tile(i, 0, grid, turn);
-                    // counter += 1;
+                    const data = {
+                        roomName: room,
+                        column: i
+                    };
+                    socket.emit('move', data);
                     break; 
                 }
             }
